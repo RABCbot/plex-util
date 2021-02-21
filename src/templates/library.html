@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}
+Library
+{% endblock %}
+{% block content %}
+<p>Plex library</p>
+<table>
+  <tr>
+    <th>Year</th>
+    <th>Title</th>
+    <th>Duration</th>
+    <th>Video Codec</th>
+    <th>Video Depth</th>
+    <th>Audio Channels</th>
+    <th>Subtitle</th>
+  </tr>
+  {% for video in videos %}
+  <tr>
+    <td>{{ video.year }}</td>
+    <td>{{ video.title }}</td>
+    <td>{{ video.duration }}</td>
+    <td>{{ video.videoCodec }}</td>
+    <td>{{ video.videoDepth }}</td>
+    <td>{{ video.audioChannels }}</td>
+    <td>{{ video.subtitle }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

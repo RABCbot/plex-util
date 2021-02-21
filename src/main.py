@@ -1,20 +1,27 @@
 import os
-import requests
+import urllib3
 import xml.etree.ElementTree as ET
 import subprocess
 import logging
-from flask import Flask
+from flask import Flask, render_template
 from datetime import datetime
 import json
 
 app = Flask(__name__)
 logging.basicConfig(filename="plex_stereo.log",level=logging.DEBUG)
 
-plex_token = "<your-plex-token>"
-plex_url = "http://<your-plex-ip>:32400/library/sections/1/all"
-headers    = {"X-Plex-Token": plex_token,
-              "Content-Type": "application/xml"}
+plex_token = os.environ["PLEX_TOKEN"]
+plex_url = os.environ["PLEX_URL"]
+plex_library = os.getenv("PLEX_LIBRARY", 1)
 ok = {"status": "ok"}
+
+@app.route("/")
+def home():
+  return render_template("home.html")
+
+@app.route("/about/")
+def about():
+  return render_template("about.html")
 
 @app.route("/status", methods=["GET"])
 def status():
@@ -23,18 +30,101 @@ def status():
 @app.route("/help", methods=["GET"])
 def help():
   msg = "<b>GET /status</b><br/>" \
-        "<b>GET /transcode</b> transcode 6-audio titles to stereo<br/>" \
-        "<b>GET /get_subtitle/true</b> returns titles with subs<br/>" \
+        "<b>GET /library</b>Returns all the library<br/>" \
+        "<b>GET /highres</b>Returns HVEC/10bits/5.1 library<br/>" \
         "<b>GET /get_subtitle/false</b> returns titles without subs<br/>" \
         "<b>GET /get_list</b> returns all titles<br/>" \
         "Runs as a service using systemctl plex-util<br/>"
   return msg
 
+@app.route("/library")
+def library():
+  http = urllib3.PoolManager()
+
+  r = http.request('GET', 
+        f"{plex_url}/library/sections/{plex_library}/all", 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+  root = ET.fromstring(r.data.decode('utf-8'))
+
+  videos = []
+  for video in root.findall("./Video"):
+    url = video.attrib["key"]
+    url = f"{plex_url}{url}"
+    r = http.request('GET', 
+        url, 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+    data = {
+            "title": video.attrib["title"],
+            "year": "",
+            "duration": int(video.attrib["duration"]) / 3600000,
+            "videoCodec": "",
+            "videoDepth": "",
+            "audioCodec": "",
+            "audioChannels": "",
+            "subtitle": "",
+            "filename": video[0][0].attrib["file"]
+          }
+    if "year" in video.attrib:
+      data["year"] = video.attrib["year"]
+
+    container = ET.fromstring(r.data.decode('utf-8'))
+    stream = container.find("./Video/Media/Part/Stream[@streamType='1']")
+    if stream is not None:
+      data["videoCodec"] = stream.attrib["codec"]
+      data["videoDepth"] = stream.attrib["bitDepth"]
+
+    stream = container.find("./Video/Media/Part/Stream[@streamType='2']")
+    if stream is not None:
+      data["audioCodec"] = stream.attrib["codec"]
+      data["audioChannels"] = stream.attrib["channels"]
+
+    stream = container.find("./Video/Media/Part/Stream[@streamType='3']")
+    if stream is not None:
+      data["subtitle"] = stream.attrib["displayTitle"]
+    videos.append(data)
+
+  return render_template("library.html", videos=videos)
+
+@app.route("/highres")
+def highres():
+  http = urllib3.PoolManager()
+
+  r = http.request('GET', 
+        f"{plex_url}/library/sections/{plex_library}/all", 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+  root = ET.fromstring(r.data.decode('utf-8'))
+
+  videos = []
+  for video in root.findall("./Video/Media[@audioChannels='6']..") + root.findall("./Video/Media[@videoCodec='hvec'].."):
+    url = video.attrib["key"]
+    url = f"{plex_url}{url}"
+    r = http.request('GET', 
+        url, 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+    container = ET.fromstring(r.data.decode('utf-8'))
+    stream1 = container.find("./Video/Media/Part/Stream[@streamType='1']")
+    stream2 = container.find("./Video/Media/Part/Stream[@streamType='2']")
+    stream3 = container.find("./Video/Media/Part/Stream[@streamType='3']")
+    subtitle = ""
+    if stream3 is not None:
+      subtitle = stream3.attrib["displayTitle"]
+    videos.append({"videoCodec": stream1.attrib["codec"],
+                   "videoBits": stream1.attrib["bitDepth"],
+                   "audioCodec": stream2.attrib["codec"],
+                   "audioChannels": stream2.attrib["channels"],
+                   "subtitle": subtitle,
+                   "filename": video[0][0].attrib["file"]})
+
+  return(json.dumps(videos))
+
 @app.route("/transcode", methods=["GET"])
 def transcode():
-  response = requests.get(plex_url, headers=headers)
-  response.raise_for_status()
-  root = ET.fromstring(response.text)
+  http = urllib3.PoolManager()
+  r = http.request('GET', 
+        plex_url, 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+  root = ET.fromstring(r.data.decode('utf-8'))
+
   for video in root.findall("./Video/Media[@audioChannels='6'].."):
     part = video.find("./Media/Part")
     collection = video.find("Collection")
@@ -50,9 +140,12 @@ def transcode():
 
 @app.route("/get_subtitle/<option>", methods=["GET"])
 def get_subtitle(option):
-  response = requests.get(plex_url, headers=headers)
-  response.raise_for_status()
-  root = ET.fromstring(response.text)
+  http = urllib3.PoolManager()
+  r = http.request('GET', 
+        plex_url, 
+        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+  root = ET.fromstring(r.data.decode('utf-8'))
+
   titles, files, added = [], [], []
   msg = ""
   for video in root.findall("./Video"):
@@ -81,4 +174,3 @@ def get_subtitle(option):
 if __name__ == "__main__":
     app.debug = True
     app.run(host="0.0.0.0", port=8080)
-
