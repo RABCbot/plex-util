@@ -12,7 +12,7 @@ Movies
       <th onclick="sortTable(3)">Duration</th>
       <th onclick="sortTable(4)">Rating</th>
       <th onclick="sortTable(5)">Score</th>
-      <th onclick="sortTable(6)">Profile</th>
+      <th onclick="sortTable(6)">Codec</th>
       <th onclick="sortTable(7)">Subtitle</th>
       <th onclick="sortTable(8)">Played</th>
     </tr>
@@ -26,7 +26,7 @@ Movies
       <td>{{ video.duration }}</td>
       <td>{{ video.rating }}</td>
       <td>{{ video.score }}</td>
-      <td><a href="{{ url_for('transcode') }}" class="navbar-item">{{ video.videoDepth }}:{{ video.videoCodec }}:{{ video.audioChannels }}</td>
+      <td><a href="{{ url_for('transcode', key=video.key) }}" class="navbar-item">{{ video.videoDepth }}:{{ video.videoCodec }}:{{ video.audioChannels }}</td>
       <td>{{ video.subtitle }}</td>
       <td>{{ video.played }}</td>
     </tr>
