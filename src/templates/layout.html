@@ -1,24 +1,25 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8" />
-        <title>{% block title %}{% endblock %}</title>
-        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='site.css') }}"  />
-    </head>
 
-    <body>
-        <div class="navbar">
-            <a href="{{ url_for('home') }}" class="navbar-brand">Home</a>
-            <a href="{{ url_for('about') }}" class="navbar-item">About</a>
-        </div>
+<head>
+    <meta charset="utf-8" />
+    <title>{% block title %}{% endblock %}</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
 
-        <div class="body-content">
-            {% block content %}
-            {% endblock %}
-            <hr/>
-            <footer>
-                <p>Plex util footer - Feb 2021</p>
-            </footer>
-        </div>
-    </body>
+<body>
+    <div class="navbar">
+        <ul>
+            <li><a href="{{ url_for('movies') }}" class="navbar-item">Movies</a></li>
+            <li><a href="{{ url_for('transcode') }}" class="navbar-item">Transcode</a></li>
+            <li><a href="{{ url_for('about') }}" class="navbar-item">About</a></li>
+        </ul>
+    </div>
+
+    <div class="body-content">
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+
 </html>
