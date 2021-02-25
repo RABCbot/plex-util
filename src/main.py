@@ -8,15 +8,23 @@ from datetime import datetime
 import json
 import docker
 
+logging_level = os.getenv('LOGGING', logging.INFO)
 logger = logging.getLogger()
+logger.setLevel(logging_level)
+
 
 app = Flask(__name__)
 
 plex_token = os.environ["PLEX_TOKEN"]
 plex_url = os.environ["PLEX_URL"]
 plex_movies = os.getenv("PLEX_MOVIES_LIBRARY", 1)
+
 docker_url = os.getenv("DOCKER_URL", 'unix://var/run/docker.sock')
+docker_auto_remove = False
 ffmpeg_image = os.getenv("FFMPEG_IMAGE", "linuxserver/ffmpeg")
+ffmpeg_media = os.environ["FFMPEG_MEDIA"]
+ffmpeg_output = os.getenv("FFMPEG_OUTPUT", "/media/Transcoded/")
+
 ok = {"status": "ok"}
 
 @app.route("/about/")
@@ -64,6 +72,7 @@ def get_video(key):
           "audioCodec": "",
           "audioChannels": "",
           "subtitle": "",
+          "transcode": [],
           "filename": video[0][0].attrib["file"]
         }
 
@@ -93,34 +102,52 @@ def get_video(key):
   if stream is not None:
     data["subtitle"] = stream.attrib["displayTitle"]
 
+  data["transcode"] = ffmpeg_matching(data)
+
   return data
 
 @app.route("/transcode/", methods=["GET"])
-@app.route("/transcode/<key>", methods=["GET"])
-def transcode(key=None):
+@app.route("/transcode/<key>/<name>/", methods=["GET"])
+def transcode(key=None, name=None):
+  try:
+    client = docker.DockerClient(base_url=docker_url)
+    containers = client.containers.list(all=True, filters={"ancestor":ffmpeg_image})
 
-  client = docker.DockerClient(base_url=docker_url)
-  containers = client.containers.list(filters={"ancestor":ffmpeg_image})
+    # if key, run new ffmpeg container if is not running already
+    if key is not None:
+      c_name = f"ffmpeg{key}"
+      lst = [c for c in containers if c.name == c_name]
+      if len(lst) == 0:
+        video = get_video(key)
+        src = video["filename"]
+        _, dst = os.path.split(src)
+        dst = f"{ffmpeg_output}{dst}"
+        container = client.containers.run(image=ffmpeg_image,
+          command=ffmpeg_command(name).format(src, dst),
+          name=c_name,
+          labels={"title":video["title"]},
+          auto_remove=docker_auto_remove,
+          detach=True,
+          volumes={ffmpeg_media:{"bind":"/media","mode":"rw"}})
+        containers.append(container)
+    return render_template("transcode.html", containers=containers)
 
-  # if key, run new ffmpeg container if not running already
-  if key is not None:
-    # check if already running
-    lst = [c for c in containers if c.name == key]
-    if len(lst) == 0:
-      video = get_video(key)
-      src = video["filename"]
-      dst = f"/media/Transcoded/{key}.mkv"
-      cmd = f"-i {src} -ac 2 -af pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR -c:v copy {dst}"
-      container = client.containers.run(image=ffmpeg_image,
-        command=cmd,
-        name=key,
-        labels={"Title":video["title"]},
-        auto_remove=True,
-        detach=True,
-        volumes={"/srv/dev-disk-by-uuid-710d520b-bb51-4d6e-8c51-f4b9d8126a08/WDBlack/Media":{"bind":"/media","mode":"rw"}})
-      containers.append(container)
+  except Exception as ex:
+    return render_template("exception.html", error=f"transcode failed because: {ex}")
 
-  return render_template("transcode.html", containers=containers)
+# return matching commands
+def ffmpeg_matching(video):
+  with app.open_resource("static/ffmpeg.json") as f:
+    cmds = json.load(f)
+  lst = [cmd for cmd in cmds if cmd["videoCodec"] == video["videoCodec"] and str(cmd["videoDepth"]) == video["videoDepth"] and str(cmd["audioChannels"]) == video["audioChannels"]]
+  return lst
+
+# return matching command by name
+def ffmpeg_command(name):
+  with app.open_resource("static/ffmpeg.json") as f:
+    cmds = json.load(f)
+  cmd = [cmd for cmd in cmds if cmd["name"] == name][0]
+  return cmd["command"]
 
 if __name__ == "__main__":
     app.debug = True
