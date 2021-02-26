@@ -6,16 +6,18 @@ Transcode
 <table id="transcodeTable">
   <thead>
     <tr>
-      <th onclick="sortTable(0)">Name</th>
-      <th onclick="sortTable(1)">Labels</th>
-      <th>Status</th>
+      <th onclick="sortTable(0)">Container</th>
+      <th onclick="sortTable(1)">Created</th>
+      <th onclick="sortTable(2)">Title</th>
+      <th onclick="sortTable(3)">Status</th>
     </tr>
   </thead>
   <tbody>
     {% for container in containers %}
     <tr>
       <td>{{ container.name }}</td>
-      <td>{{ container.labels }}</td>
+      <td>{{ container.labels.created }}</td>
+      <td>{{ container.labels.title }}</td>
       <td>{{ container.status }}</td>
     </tr>
     {% endfor %}

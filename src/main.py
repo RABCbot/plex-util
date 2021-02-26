@@ -35,6 +35,7 @@ def about():
 def status():
   return json.dumps(ok)
 
+# Render a page with all the movies
 @app.route("/movies")
 def movies():
   http = urllib3.PoolManager()
@@ -49,7 +50,7 @@ def movies():
 
   return render_template("movies.html", videos=videos)
 
-# Return a JSON representation of the video container
+# Return a JSON representation of the Plex video container
 def get_video(key):
   http = urllib3.PoolManager()
   r = http.request('GET', 
@@ -106,6 +107,7 @@ def get_video(key):
 
   return data
 
+# Render a page with current FFmpeg containers and optional creates a new container
 @app.route("/transcode/", methods=["GET"])
 @app.route("/transcode/<key>/<name>/", methods=["GET"])
 def transcode(key=None, name=None):
@@ -113,7 +115,7 @@ def transcode(key=None, name=None):
     client = docker.DockerClient(base_url=docker_url)
     containers = client.containers.list(all=True, filters={"ancestor":ffmpeg_image})
 
-    # if key, run new ffmpeg container if is not running already
+    # if a key provided, create a new ffmpeg container if does not exists already
     if key is not None:
       c_name = f"ffmpeg{key}"
       lst = [c for c in containers if c.name == c_name]
@@ -125,7 +127,7 @@ def transcode(key=None, name=None):
         container = client.containers.run(image=ffmpeg_image,
           command=ffmpeg_command(name).format(src, dst),
           name=c_name,
-          labels={"title":video["title"]},
+          labels={"title":video["title"],"created":datetime.now().strftime("%Y/%m/%d %H:%M:%S")},
           auto_remove=docker_auto_remove,
           detach=True,
           volumes={ffmpeg_media:{"bind":"/media","mode":"rw"}})
@@ -135,14 +137,14 @@ def transcode(key=None, name=None):
   except Exception as ex:
     return render_template("exception.html", error=f"transcode failed because: {ex}")
 
-# return matching commands
+# Return all the matching ffmpeg commands by video codecs
 def ffmpeg_matching(video):
   with app.open_resource("static/ffmpeg.json") as f:
     cmds = json.load(f)
   lst = [cmd for cmd in cmds if cmd["videoCodec"] == video["videoCodec"] and str(cmd["videoDepth"]) == video["videoDepth"] and str(cmd["audioChannels"]) == video["audioChannels"]]
   return lst
 
-# return matching command by name
+# Return the matching ffmpeg command by name
 def ffmpeg_command(name):
   with app.open_resource("static/ffmpeg.json") as f:
     cmds = json.load(f)
