@@ -58,7 +58,7 @@ def get_video(key):
         headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
   container = ET.fromstring(r.data.decode('utf-8'))
   video = container.find("./Video")
-  dur = datetime.fromtimestamp(int(video.attrib["duration"])/1000.0)
+  dur = datetime.utcfromtimestamp(int(video.attrib["duration"])/1000.0)
   data = {
           "key": key,
           "title": video.attrib["title"],
@@ -67,13 +67,13 @@ def get_video(key):
           "played": "0",
           "rating": "",
           "score": "",
-          "duration": dur.strftime("%H:%M"),
+          "duration": dur.strftime("%-I:%M"),
           "videoCodec": "",
           "videoDepth": "",
           "audioCodec": "",
           "audioChannels": "",
           "subtitle": "",
-          "transcode": [],
+          "profiles": [],
           "filename": video[0][0].attrib["file"]
         }
 
@@ -103,31 +103,31 @@ def get_video(key):
   if stream is not None:
     data["subtitle"] = stream.attrib["displayTitle"]
 
-  data["transcode"] = ffmpeg_matching(data)
+  data["profiles"] = ffmpeg_profiles(data)
 
   return data
 
 # Render a page with current FFmpeg containers and optional creates a new container
 @app.route("/transcode/", methods=["GET"])
-@app.route("/transcode/<key>/<name>/", methods=["GET"])
-def transcode(key=None, name=None):
+@app.route("/transcode/<key>/<profile>/", methods=["GET"])
+def transcode(key=None, profile=None):
   try:
     client = docker.DockerClient(base_url=docker_url)
     containers = client.containers.list(all=True, filters={"ancestor":ffmpeg_image})
 
     # if a key provided, create a new ffmpeg container if does not exists already
     if key is not None:
-      c_name = f"ffmpeg{key}"
-      lst = [c for c in containers if c.name == c_name]
+      container_name = f"ffmpeg{key}"
+      lst = [container for container in containers if container.name == container_name]
       if len(lst) == 0:
         video = get_video(key)
         src = video["filename"]
         _, dst = os.path.split(src)
         dst = f"{ffmpeg_output}{dst}"
         container = client.containers.run(image=ffmpeg_image,
-          command=ffmpeg_command(name).format(src, dst),
-          name=c_name,
-          labels={"title":video["title"],"created":datetime.now().strftime("%Y/%m/%d %H:%M:%S")},
+          command=ffmpeg_command(profile).format(src, dst),
+          name=container_name,
+          labels={"title":video["title"],"created":datetime.now().strftime("%Y/%m/%d %H:%M:%S"),"profile":profile},
           auto_remove=docker_auto_remove,
           detach=True,
           volumes={ffmpeg_media:{"bind":"/media","mode":"rw"}})
@@ -138,18 +138,18 @@ def transcode(key=None, name=None):
     return render_template("exception.html", error=f"transcode failed because: {ex}")
 
 # Return all the matching ffmpeg commands by video codecs
-def ffmpeg_matching(video):
-  with app.open_resource("static/ffmpeg.json") as f:
-    cmds = json.load(f)
-  lst = [cmd for cmd in cmds if cmd["videoCodec"] == video["videoCodec"] and str(cmd["videoDepth"]) == video["videoDepth"] and str(cmd["audioChannels"]) == video["audioChannels"]]
+def ffmpeg_profiles(video):
+  with app.open_resource("static/plex-util.config") as f:
+    data = json.load(f)
+  lst = [p for p in data["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"]]
   return lst
 
-# Return the matching ffmpeg command by name
+# Return the matching ffmpeg command by profile
 def ffmpeg_command(name):
-  with app.open_resource("static/ffmpeg.json") as f:
-    cmds = json.load(f)
-  cmd = [cmd for cmd in cmds if cmd["name"] == name][0]
-  return cmd["command"]
+  with app.open_resource("static/plex-util.config") as f:
+    data = json.load(f)
+  profile = [p for p in data["profiles"] if p["name"] == name][0]
+  return profile["command"]
 
 if __name__ == "__main__":
     app.debug = True

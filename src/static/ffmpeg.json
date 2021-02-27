@@ -25,13 +25,13 @@
         "videoCodec": "hevc",
         "videoDepth": 8,
         "audioChannels": 6,
-        "command": "-i {} -c:v libx264 -crf 18 -preset medium -ac 2 -af pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR {}"
+        "command": "-i {} -c:v libx264 -crf 22 -preset medium -ac 2 -af pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR {}"
     },
     {
         "name": "hevc2",
         "videoCodec": "hevc",
         "videoDepth": 8,
         "audioChannels": 2,
-        "command": "-i {} -c:v libx264 -crf 18 -preset medium -c:a copy {}"
+        "command": "-i {} -c:v libx264 -crf 22 -preset medium -c:a copy {}"
     }
 ]

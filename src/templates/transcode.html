@@ -7,17 +7,19 @@ Transcode
   <thead>
     <tr>
       <th onclick="sortTable(0)">Container</th>
-      <th onclick="sortTable(1)">Created</th>
-      <th onclick="sortTable(2)">Title</th>
-      <th onclick="sortTable(3)">Status</th>
+      <th onclick="sortTable(1)">Title</th>
+      <th onclick="sortTable(2)">Profile</th>
+      <th onclick="sortTable(3)">Created</th>
+      <th onclick="sortTable(4)">Status</th>
     </tr>
   </thead>
   <tbody>
     {% for container in containers %}
     <tr>
       <td>{{ container.name }}</td>
-      <td>{{ container.labels.created }}</td>
       <td>{{ container.labels.title }}</td>
+      <td>{{ container.labels.profile }}</td>
+      <td>{{ container.labels.created }}</td>
       <td>{{ container.status }}</td>
     </tr>
     {% endfor %}
