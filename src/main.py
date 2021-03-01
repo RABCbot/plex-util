@@ -139,16 +139,18 @@ def transcode(key=None, profile=None):
 
 # Return all the matching ffmpeg commands by video codecs
 def ffmpeg_profiles(video):
-  with app.open_resource("static/plex-util.config") as f:
+  lst = None
+  with open("/etc/config.json", "r") as f:
     data = json.load(f)
-  lst = [p for p in data["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"]]
+    lst = [p for p in data["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"]]
   return lst
 
 # Return the matching ffmpeg command by profile
 def ffmpeg_command(name):
-  with app.open_resource("static/plex-util.config") as f:
+  profile = None
+  with open("/etc/config.json", "r") as f:
     data = json.load(f)
-  profile = [p for p in data["profiles"] if p["name"] == name][0]
+    profile = [p for p in data["profiles"] if p["name"] == name][0]
   return profile["command"]
 
 if __name__ == "__main__":
