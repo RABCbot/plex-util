@@ -12,18 +12,7 @@ logging_level = os.getenv('LOGGING', logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging_level)
 
-
 app = Flask(__name__)
-
-plex_token = os.environ["PLEX_TOKEN"]
-plex_url = os.environ["PLEX_URL"]
-plex_movies = os.getenv("PLEX_MOVIES_LIBRARY", 1)
-
-docker_url = os.getenv("DOCKER_URL", 'unix://var/run/docker.sock')
-docker_auto_remove = False
-ffmpeg_image = os.getenv("FFMPEG_IMAGE", "linuxserver/ffmpeg")
-ffmpeg_media = os.environ["FFMPEG_MEDIA"]
-ffmpeg_output = os.getenv("FFMPEG_OUTPUT", "/media/Transcoded/")
 
 ok = {"status": "ok"}
 
@@ -38,10 +27,15 @@ def status():
 # Render a page with all the movies
 @app.route("/movies")
 def movies():
+  cfg = read_config()
+  url = cfg["plex"]["url"]
+  library = cfg["plex"]["library"]
+  token = cfg["plex"]["token"]
+
   http = urllib3.PoolManager()
   r = http.request('GET', 
-        f"{plex_url}/library/sections/{plex_movies}/all", 
-        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+        f"{url}/library/sections/{library}/all", 
+        headers={"X-Plex-Token": token, "Content-Type": "application/xml"})
   containers = ET.fromstring(r.data.decode('utf-8'))
 
   videos = []
@@ -52,10 +46,14 @@ def movies():
 
 # Return a JSON representation of the Plex video container
 def get_video(key):
+  cfg = read_config()
+  url = cfg["plex"]["url"]
+  token = cfg["plex"]["token"]
+
   http = urllib3.PoolManager()
   r = http.request('GET', 
-        f"{plex_url}/library/metadata/{key}", 
-        headers={"X-Plex-Token": plex_token, "Content-Type": "application/xml"})
+        f"{url}/library/metadata/{key}", 
+        headers={"X-Plex-Token": token, "Content-Type": "application/xml"})
   container = ET.fromstring(r.data.decode('utf-8'))
   video = container.find("./Video")
   dur = datetime.utcfromtimestamp(int(video.attrib["duration"])/1000.0)
@@ -112,8 +110,12 @@ def get_video(key):
 @app.route("/transcode/<key>/<profile>/", methods=["GET"])
 def transcode(key=None, profile=None):
   try:
-    client = docker.DockerClient(base_url=docker_url)
-    containers = client.containers.list(all=True, filters={"ancestor":ffmpeg_image})
+    cfg = read_config()
+    ffmpeg_output = cfg["ffmpeg"]["output"]
+
+    client = docker.DockerClient(base_url=cfg["ffmpeg"]["docker_url"])
+    containers = client.containers.list(all=True, filters={"ancestor":cfg["ffmpeg"]["docker_image"]})
+
 
     # if a key provided, create a new ffmpeg container if does not exists already
     if key is not None:
@@ -124,13 +126,13 @@ def transcode(key=None, profile=None):
         src = video["filename"]
         _, dst = os.path.split(src)
         dst = f"{ffmpeg_output}{dst}"
-        container = client.containers.run(image=ffmpeg_image,
+        container = client.containers.run(image=cfg["ffmpeg"]["docker_image"],
           command=ffmpeg_command(profile).format(src, dst),
           name=container_name,
           labels={"title":video["title"],"created":datetime.now().strftime("%Y/%m/%d %H:%M:%S"),"profile":profile},
-          auto_remove=docker_auto_remove,
+          auto_remove=cfg["ffmpeg"]["auto_remove"],
           detach=True,
-          volumes={ffmpeg_media:{"bind":"/media","mode":"rw"}})
+          volumes={cfg["ffmpeg"]["media"]:{"bind":"/media","mode":"rw"}})
         containers.append(container)
     return render_template("transcode.html", containers=containers)
 
@@ -139,19 +141,19 @@ def transcode(key=None, profile=None):
 
 # Return all the matching ffmpeg commands by video codecs
 def ffmpeg_profiles(video):
-  lst = None
-  with open("/etc/config.json", "r") as f:
-    data = json.load(f)
-    lst = [p for p in data["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"]]
+  cfg = read_config()
+  lst = [p for p in cfg["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"] and not(cfg["plex"]["hide_profile_if_played"] and video["played"] != "0")]
   return lst
 
 # Return the matching ffmpeg command by profile
 def ffmpeg_command(name):
-  profile = None
-  with open("/etc/config.json", "r") as f:
-    data = json.load(f)
-    profile = [p for p in data["profiles"] if p["name"] == name][0]
+  cfg = read_config()
+  profile = [p for p in cfg["profiles"] if p["name"] == name][0]
   return profile["command"]
+
+def read_config():
+  with open("/etc/config.json", "r") as f:
+    return json.load(f)
 
 if __name__ == "__main__":
     app.debug = True
