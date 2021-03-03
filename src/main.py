@@ -36,10 +36,10 @@ def movies():
   r = http.request('GET', 
         f"{url}/library/sections/{library}/all", 
         headers={"X-Plex-Token": token, "Content-Type": "application/xml"})
-  containers = ET.fromstring(r.data.decode('utf-8'))
+  container = ET.fromstring(r.data.decode('utf-8'))
 
   videos = []
-  for video in containers.findall("./Video"):
+  for video in container.findall("./Video"):
     videos.append(get_video(video.attrib["ratingKey"]))
 
   return render_template("movies.html", videos=videos)
@@ -55,29 +55,31 @@ def get_video(key):
         f"{url}/library/metadata/{key}", 
         headers={"X-Plex-Token": token, "Content-Type": "application/xml"})
   container = ET.fromstring(r.data.decode('utf-8'))
-  video = container.find("./Video")
-  dur = datetime.utcfromtimestamp(int(video.attrib["duration"])/1000.0)
   data = {
-          "key": key,
-          "title": video.attrib["title"],
+          "key": "",
+          "title": "",
           "genre": "",
           "year": "",
           "played": "0",
           "rating": "",
           "score": "",
-          "duration": dur.strftime("%-I:%M"),
+          "duration": "",
+          "videoResolution": "",
           "videoCodec": "",
           "videoDepth": "",
           "audioCodec": "",
           "audioChannels": "",
+          "format": "",
           "subtitle": "",
           "profiles": [],
-          "filename": video[0][0].attrib["file"]
+          "filename": ""
         }
 
-  genre = video.find("./Genre")
-  if genre is not None:
-    data["genre"] = genre.attrib["tag"]
+  video = container.find("./Video")
+  data["key"] = video.attrib["ratingKey"]
+  data["title"] = video.attrib["title"]
+  dur = datetime.utcfromtimestamp(int(video.attrib["duration"])/1000.0)
+  data["duration"] = dur.strftime("%-I:%M")
   if "year" in video.attrib:
     data["year"] = video.attrib["year"]
   if "viewCount" in video.attrib:
@@ -87,17 +89,30 @@ def get_video(key):
   if "audienceRating" in video.attrib:
     data["score"] = video.attrib["audienceRating"]
 
-  stream = container.find("./Video/Media/Part/Stream[@streamType='1']")
+  genre = video.find("./Genre")
+  if genre is not None:
+    data["genre"] = genre.attrib["tag"]
+
+  media = video.find("./Media")
+  data["format"] = media.attrib["container"]
+  data["videoResolution"] = "{}x{}".format(media.attrib["width"], media.attrib["height"])
+
+  part = media.find("./Part")
+  data["filename"] = part.attrib["file"]
+
+  stream = part.find("./Stream[@streamType='1']")
   if stream is not None:
     data["videoCodec"] = stream.attrib["codec"]
     data["videoDepth"] = stream.attrib["bitDepth"]
 
-  stream = container.find("./Video/Media/Part/Stream[@streamType='2']")
+  stream = part.find("./Stream[@streamType='2']")
   if stream is not None:
     data["audioCodec"] = stream.attrib["codec"]
+    if "profile" in stream.attrib:
+      data["audioCodec"] = stream.attrib["profile"]
     data["audioChannels"] = stream.attrib["channels"]
 
-  stream = container.find("./Video/Media/Part/Stream[@streamType='3']")
+  stream = part.find("./Stream[@streamType='3']")
   if stream is not None:
     data["subtitle"] = stream.attrib["displayTitle"]
 
@@ -142,7 +157,7 @@ def transcode(key=None, profile=None):
 # Return all the matching ffmpeg commands by video codecs
 def ffmpeg_profiles(video):
   cfg = read_config()
-  lst = [p for p in cfg["profiles"] if p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"] and not(cfg["plex"]["hide_profile_if_played"] and video["played"] != "0")]
+  lst = [p for p in cfg["profiles"] if video["format"] in p["format"] or p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"] and not(cfg["plex"]["hide_profile_if_played"] and video["played"] != "0")]
   return lst
 
 # Return the matching ffmpeg command by profile

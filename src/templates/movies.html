@@ -12,12 +12,15 @@ Movies
       <th onclick="sortTable(3)">Duration</th>
       <th onclick="sortTable(4)">Rating</th>
       <th onclick="sortTable(5)">Score</th>
-      <th onclick="sortTable(6)">Video</th>
-      <th onclick="sortTable(7)">Depth</th>
-      <th onclick="sortTable(8)">Audio</th>
-      <th onclick="sortTable(9)">Subtitle</th>
-      <th onclick="sortTable(10)">Played</th>
-      <th onclick="sortTable(11)">Profiles</th>
+      <th onclick="sortTable(6)">Resolution</th>
+      <th onclick="sortTable(7)">Video</th>
+      <th onclick="sortTable(8)">Depth</th>
+      <th onclick="sortTable(9)">Audio</th>
+      <th onclick="sortTable(10)">Channels</th>
+      <th onclick="sortTable(11)">Format</th>
+      <th onclick="sortTable(12)">Subtitle</th>
+      <th onclick="sortTable(13)">Played</th>
+      <th onclick="sortTable(14)">Profiles</th>
     </tr>
   </thead>
   <tbody>
@@ -29,9 +32,12 @@ Movies
       <td>{{ video.duration }}</td>
       <td>{{ video.rating }}</td>
       <td>{{ video.score }}</td>
+      <td>{{ video.videoResolution }}</td>
       <td>{{ video.videoCodec }}</td>
       <td>{{ video.videoDepth }}</td>
+      <td>{{ video.audioCodec }}</td>
       <td>{{ video.audioChannels }}</td>
+      <td>{{ video.format }}</td>
       <td>{{ video.subtitle }}</td>
       <td>{{ video.played }}</td>
       <td>{% for profile in video.profiles %}<a href="{{ url_for('transcode', key=video.key, profile=profile.name) }}" class="navbar-item">{{ profile.name }} {% endfor %}</td>
