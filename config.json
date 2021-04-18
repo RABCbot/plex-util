@@ -1,7 +1,7 @@
 {
     "plex": {
-        "url": "http://<plex-ip>:32400",
-        "token": "<plex-token>",
+        "url": "http://<your-plex-ip>:32400",
+        "token": "<your-plex-token>",
         "library": 1,
         "hide_profile_if_played": true
     },
@@ -9,12 +9,12 @@
         "docker_url":"unix://var/run/docker.sock",
         "docker_image": "linuxserver/ffmpeg",
         "auto_remove": false,
-        "media": "/<local-media-path>/",
-        "output": "/media/<transcoded-folder>/"
+        "media": "<your-media-path>",
+        "output": "/media/Transcoded/"
     },
     "profiles": [
         {
-            "name": "avi",
+            "name": "mp4",
             "format": ["avi", "mkv"],
             "videoCodec": "",
             "videoDepth": 0,
