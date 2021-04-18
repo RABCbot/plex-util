@@ -87,7 +87,7 @@ def get_video(key):
   if "contentRating" in video.attrib:
     data["rating"] = video.attrib["contentRating"]
   if "audienceRating" in video.attrib:
-    data["score"] = video.attrib["audienceRating"]
+    data["score"] = round(10 * float(video.attrib["audienceRating"]))
 
   genre = video.find("./Genre")
   if genre is not None:
@@ -157,7 +157,7 @@ def transcode(key=None, profile=None):
 # Return all the matching ffmpeg commands by video codecs
 def ffmpeg_profiles(video):
   cfg = read_config()
-  lst = [p for p in cfg["profiles"] if video["format"] in p["format"] or p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"] and not(cfg["plex"]["hide_profile_if_played"] and video["played"] != "0")]
+  lst = [p for p in cfg["profiles"] if not(cfg["plex"]["hide_profile_if_played"] and video["played"] != "0") and (video["format"] in p["format"] or (p["videoCodec"] == video["videoCodec"] and str(p["videoDepth"]) == video["videoDepth"] and str(p["audioChannels"]) == video["audioChannels"]))]
   return lst
 
 # Return the matching ffmpeg command by profile
